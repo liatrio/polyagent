@@ -1,0 +1,7 @@
+framework:
+  id: openssf-slsa
+  name: "OpenSSF SLSA (Supply-chain Levels for Software Artifacts)"
+  version: "1.0"
+  url: "https://slsa.dev"
+
+requirements: []
