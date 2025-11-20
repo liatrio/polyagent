@@ -1,0 +1,47 @@
+{
+  "name": "@polyagent/mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server that bridges AI coding assistants with the OPA policy ecosystem",
+  "main": "dist/server.js",
+  "bin": {
+    "polyagent-mcp": "dist/server.js"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "jest --passWithNoTests",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "mcp",
+    "opa",
+    "policy",
+    "model-context-protocol"
+  ],
+  "author": "ianhundere",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.22.0",
+    "@open-policy-agent/opa-wasm": "^1.10.0",
+    "js-yaml": "^4.1.1",
+    "pino": "^9.14.0",
+    "pino-pretty": "^11.3.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.19.1",
+    "@typescript-eslint/eslint-plugin": "^8.47.0",
+    "@typescript-eslint/parser": "^8.47.0",
+    "eslint": "^9.39.1",
+    "jest": "^29.7.0",
+    "prettier": "^3.6.2",
+    "ts-jest": "^29.4.5",
+    "typescript": "^5.9.3"
+  }
+}
