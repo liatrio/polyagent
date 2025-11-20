@@ -1,0 +1,7 @@
+framework:
+  id: cis-kubernetes
+  name: "CIS Kubernetes Benchmarks"
+  version: "1.8"
+  url: "https://www.cisecurity.org/benchmark/kubernetes"
+
+requirements: []
