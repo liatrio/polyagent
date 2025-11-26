@@ -152,8 +152,8 @@ describe('MCP Server Integration Tests', () => {
         setTimeout(() => {
           const stdout = stdoutChunks.join('');
 
-          // Should contain tools list response with empty array
-          expect(stdout).toContain('"tools":[]');
+          // Should contain tools list response with system/health tool
+          expect(stdout).toContain('"name":"system/health"');
 
           done();
         }, 500);

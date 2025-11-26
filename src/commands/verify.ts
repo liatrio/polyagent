@@ -1,0 +1,101 @@
+import chalk from 'chalk';
+import { ConfigService } from '../config/index.js';
+import { FrameworkStore } from '../services/framework-store.js';
+import { LoggerService } from '../services/logger.js';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+
+export async function runVerify(): Promise<void> {
+  console.log(chalk.blue('PolyAgent Verification'));
+  
+  let success = true;
+
+  // 1. Verify Config
+  try {
+    process.stdout.write('Checking configuration... ');
+    await ConfigService.getInstance().initialize();
+    console.log(chalk.green('OK'));
+  } catch (err) {
+    console.log(chalk.red('FAILED'));
+    console.error(err);
+    success = false;
+  }
+
+  // 2. Verify Frameworks (Internal check)
+  try {
+    process.stdout.write('Checking framework data... ');
+    // Initialize logger for FrameworkStore (it uses LoggerService.getLogger())
+    LoggerService.initialize(); 
+    await FrameworkStore.getInstance().initialize();
+    const frameworks = FrameworkStore.getInstance().listFrameworks();
+    if (frameworks.length >= 3) {
+      console.log(chalk.green(`OK (${frameworks.length} frameworks loaded)`));
+    } else {
+      console.log(chalk.red(`FAILED (Only ${frameworks.length} frameworks loaded)`));
+      success = false;
+    }
+  } catch (err) {
+    console.log(chalk.red('FAILED'));
+    console.error(err);
+    success = false;
+  }
+
+  // 3. Verify MCP Server Connection
+  process.stdout.write('Testing MCP server connection... ');
+  
+  // Determine the script to run. We use the current process's entry point.
+  const scriptPath = process.argv[1]; 
+  
+  try {
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [scriptPath, 'start']
+    });
+
+    const client = new Client(
+      {
+        name: 'polyagent-verify-client',
+        version: '1.0.0',
+      },
+      {
+        capabilities: {},
+      }
+    );
+
+    await client.connect(transport);
+    
+    // Check tools list
+    const tools = await client.listTools();
+    
+    // Should have at least system/health
+    if (tools.tools.some(t => t.name === 'system/health')) {
+         console.log(chalk.green('OK'));
+    } else {
+        console.log(chalk.yellow('WARNING (Connected but system/health tool missing)'));
+    }
+
+    await client.close();
+  } catch (err) {
+    console.log(chalk.red('FAILED'));
+    // Only log full error if it's not just a connection close
+    // console.error('Could not connect to MCP server:', err);
+    // Simplified error for CLI user
+    console.log(chalk.red(`\nCould not connect to MCP server at ${scriptPath}`));
+    success = false;
+  }
+  
+  // 4. OPA/RAG verification (Placeholders)
+  process.stdout.write('Checking OPA engine... ');
+  console.log(chalk.yellow('SKIPPED (Pending Epic 2)'));
+
+  process.stdout.write('Checking RAG system... ');
+  console.log(chalk.yellow('SKIPPED (Pending Epic 3)'));
+
+  if (success) {
+    console.log(chalk.green('\n✓ Verification passed successfully.'));
+    process.exit(0);
+  } else {
+    console.log(chalk.red('\n✗ Verification failed. See errors above.'));
+    process.exit(1);
+  }
+}
