@@ -31,18 +31,23 @@ export async function runHealth(): Promise<void> {
     await client.close();
 
     if (result.content && result.content[0] && result.content[0].type === 'text') {
-      const health = JSON.parse(result.content[0].text);
+      const healthData = JSON.parse(result.content[0].text);
+      const components = healthData.components || {};
       
       console.log(chalk.bold('PolyAgent Health Status'));
       console.log('=======================\n');
       
-      printComponentHealth('MCP Server', health.server);
-      printComponentHealth('OPA Engine', health.opa);
-      printComponentHealth('RAG System', health.rag);
-      printComponentHealth('Configuration', health.config);
-      printComponentHealth('Frameworks', health.frameworks);
+      // Map internal component names to display logic
+      // Note: keys match what is returned by HealthService
+      printComponentHealth('MCP Server', components.mcp_server);
+      printComponentHealth('Configuration', components.config);
+      printComponentHealth('Frameworks', components.frameworks);
       
-      const isHealthy = Object.values(health).every((c: any) => c.status === 'healthy');
+      // Optional components (might not be present yet)
+      if (components.opa) printComponentHealth('OPA Engine', components.opa);
+      if (components.rag) printComponentHealth('RAG System', components.rag);
+      
+      const isHealthy = healthData.status === 'healthy';
       if (!isHealthy) {
         process.exit(1);
       }
@@ -62,13 +67,11 @@ export async function runHealth(): Promise<void> {
 function printComponentHealth(name: string, component: any) {
   if (!component) return;
   
-  const isOk = component.status === 'healthy' || component.status === 'ok';
-  
-  const statusColor = isOk ? chalk.green 
+  const statusColor = component.status === 'healthy' ? chalk.green 
     : component.status === 'degraded' ? chalk.yellow 
     : chalk.red;
   
-  const icon = isOk ? '✓' 
+  const icon = component.status === 'healthy' ? '✓' 
     : component.status === 'degraded' ? '⚠' 
     : '✗';
 
@@ -77,11 +80,9 @@ function printComponentHealth(name: string, component: any) {
     console.log(`  ${chalk.gray(component.message)}`);
   }
   if (component.details) {
-    if (typeof component.details === 'string') {
-      console.log(`  ${chalk.gray(component.details)}`);
-    } else if (component.details.loadedCount !== undefined) {
-      console.log(`  ${chalk.gray(`Loaded: ${component.details.loadedCount}`)}`);
-    }
+     if (component.details.loadedCount !== undefined) {
+         console.log(`  ${chalk.gray(`Loaded: ${component.details.loadedCount}`)}`);
+     }
   }
   console.log('');
 }
