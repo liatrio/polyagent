@@ -21,8 +21,14 @@ import type {
 
 const execFileAsync = promisify(execFile);
 
-/** compilation timeout in milliseconds */
-const OPA_BUILD_TIMEOUT_MS = 30000;
+/** default rule name for evaluation */
+const DEFAULT_RULE_NAME = 'allow';
+
+/** default compilation timeout in milliseconds */
+const DEFAULT_OPA_BUILD_TIMEOUT_MS = 30000;
+
+/** default eval timeout in milliseconds */
+const DEFAULT_OPA_EVAL_TIMEOUT_MS = 10000;
 
 /** max memory per wasm instance in bytes (50MB) */
 const MAX_WASM_MEMORY_BYTES = 50 * 1024 * 1024;
@@ -30,8 +36,40 @@ const MAX_WASM_MEMORY_BYTES = 50 * 1024 * 1024;
 /** default max trace size in bytes (1MB) - AC-2.2.10 */
 const DEFAULT_MAX_TRACE_SIZE_BYTES = 1024 * 1024;
 
-/** OPA eval timeout in milliseconds */
-const OPA_EVAL_TIMEOUT_MS = 10000;
+/** WASM memory page size in bytes (64KB per WebAssembly spec) */
+const WASM_PAGE_SIZE_BYTES = 65536;
+
+/** Minimum supported OPA CLI version */
+const MIN_OPA_VERSION = '0.45.0';
+
+/**
+ * Heap estimate multiplier for WASM memory calculation.
+ * WASM runtime typically allocates 2-4x the binary size for heap.
+ * Using 3x as conservative middle-ground estimate.
+ */
+const HEAP_ESTIMATE_MULTIPLIER = 3;
+
+/**
+ * Configuration options for OPA Evaluator timeouts.
+ * Can be set via environment variables or programmatically.
+ */
+interface OpaEvaluatorConfig {
+  buildTimeoutMs: number;
+  evalTimeoutMs: number;
+}
+
+const getConfig = (): OpaEvaluatorConfig => ({
+  buildTimeoutMs: parseInt(process.env.OPA_BUILD_TIMEOUT_MS || '', 10) || DEFAULT_OPA_BUILD_TIMEOUT_MS,
+  evalTimeoutMs: parseInt(process.env.OPA_EVAL_TIMEOUT_MS || '', 10) || DEFAULT_OPA_EVAL_TIMEOUT_MS,
+});
+
+/**
+ * Unified error type for OPA CLI and file system errors.
+ */
+interface OpaCliError extends Error {
+  stderr?: string;
+  code?: string;
+}
 
 /**
  * Cached WASM policy instance.
@@ -42,8 +80,10 @@ interface CachedPolicy {
   ruleNames: string[];
   lastAccessed: number;
   policyPath: string;
-  /** approximate memory footprint in bytes */
-  memoryBytes: number;
+  /** WASM binary size in bytes */
+  wasmBinarySize: number;
+  /** estimated runtime memory in bytes (binary + heap estimate) */
+  estimatedMemoryBytes: number;
 }
 
 /**
@@ -69,8 +109,46 @@ class OpaEvaluatorSingleton {
   private cache: Map<string, CachedPolicy> = new Map();
   /** cache for source line mappings to avoid re-parsing rego files (AC-2.2.7) */
   private sourceLineCache: Map<string, Map<string, number>> = new Map();
+  /** cached OPA version check result */
+  private opaVersionChecked = false;
 
   private constructor() {}
+
+  /**
+   * Checks if OPA CLI is available and meets minimum version requirement.
+   * Logs warning if version is below minimum but doesn't block execution.
+   */
+  private async checkOpaVersion(): Promise<void> {
+    if (this.opaVersionChecked) return;
+
+    try {
+      const { stdout } = await execFileAsync('opa', ['version'], { timeout: 5000 });
+      const versionMatch = stdout.match(/Version:\s*(\d+\.\d+\.\d+)/);
+      if (versionMatch) {
+        const version = versionMatch[1];
+        if (this.compareVersions(version, MIN_OPA_VERSION) < 0) {
+          console.warn(`[OpaEvaluator] OPA version ${version} is below minimum ${MIN_OPA_VERSION}. Some features may not work correctly.`);
+        }
+      }
+    } catch {
+      // OPA not installed or version check failed - will be caught later during compilation
+    }
+    this.opaVersionChecked = true;
+  }
+
+  /**
+   * Compares two semantic version strings.
+   * Returns negative if a < b, positive if a > b, zero if equal.
+   */
+  private compareVersions(a: string, b: string): number {
+    const partsA = a.split('.').map(Number);
+    const partsB = b.split('.').map(Number);
+    for (let i = 0; i < 3; i++) {
+      const diff = (partsA[i] || 0) - (partsB[i] || 0);
+      if (diff !== 0) return diff;
+    }
+    return 0;
+  }
 
   public static getInstance(): OpaEvaluatorSingleton {
     if (!OpaEvaluatorSingleton.instance) {
@@ -170,9 +248,9 @@ class OpaEvaluatorSingleton {
         }
       }
 
-      // if no entrypoints found, use package name with common rules
+      // if no entrypoints found, use package name with default rule
       if (entrypoints.length === 0 && packageNames.length > 0) {
-        entrypoints.push(`${packageNames[0]}/allow`);
+        entrypoints.push(`${packageNames[0]}/${DEFAULT_RULE_NAME}`);
       }
 
       // compile using opa build
@@ -184,7 +262,7 @@ class OpaEvaluatorSingleton {
         policyPath,
       ];
 
-      await execFileAsync('opa', args, { timeout: OPA_BUILD_TIMEOUT_MS });
+      await execFileAsync('opa', args, { timeout: getConfig().buildTimeoutMs });
 
       // extract policy.wasm from the bundle
       const wasmBuffer = await this.extractWasmFromBundle(bundlePath, tmpDir);
@@ -217,13 +295,16 @@ class OpaEvaluatorSingleton {
     const { policyPath, basePath } = options;
     const resolvedPath = resolve(policyPath);
 
+    // check OPA version on first use
+    await this.checkOpaVersion();
+
     // security: validate path is within allowed scope
     this.validatePath(policyPath, basePath);
 
-    // check cache first
-    if (this.cache.has(resolvedPath)) {
-      const cached = this.cache.get(resolvedPath)!;
-      cached.lastAccessed = Date.now();
+    // check cache first - use get() to avoid race condition between has() and get()
+    const existingCached = this.cache.get(resolvedPath);
+    if (existingCached) {
+      existingCached.lastAccessed = Date.now();
       return;
     }
 
@@ -260,7 +341,7 @@ class OpaEvaluatorSingleton {
     try {
       wasmBuffer = await this.compileToWasm(resolvedPath, packageNames, ruleNames);
     } catch (err) {
-      const error = err as Error & { stderr?: string; code?: string };
+      const error = err as OpaCliError;
 
       // check if opa cli is not installed
       if (error.code === 'ENOENT') {
@@ -290,13 +371,19 @@ class OpaEvaluatorSingleton {
     // load the compiled wasm
     try {
       const policy = await loadOpaPolicy(wasmBuffer);
-      
-      // estimate memory footprint (wasm binary size is approximate indicator)
-      const memoryBytes = wasmBuffer.length;
-      
-      // warn if memory exceeds threshold (AC-2.1.9)
-      if (memoryBytes > MAX_WASM_MEMORY_BYTES) {
-        console.warn(`[OpaEvaluator] Policy ${policyPath} exceeds 50MB memory threshold: ${(memoryBytes / 1024 / 1024).toFixed(2)}MB`);
+
+      // AC-2.1.9: Track memory usage
+      // WASM binary size + estimated heap (typically 2-4x binary for simple policies)
+      // Also account for initial memory pages allocated by WASM runtime
+      const wasmBinarySize = wasmBuffer.length;
+      const initialMemoryPages = 16; // typical default, ~1MB
+      const estimatedMemoryBytes = wasmBinarySize +
+        (initialMemoryPages * WASM_PAGE_SIZE_BYTES) +
+        (wasmBinarySize * HEAP_ESTIMATE_MULTIPLIER);
+
+      // warn if estimated memory exceeds threshold (AC-2.1.9)
+      if (estimatedMemoryBytes > MAX_WASM_MEMORY_BYTES) {
+        console.warn(`[OpaEvaluator] Policy ${policyPath} estimated memory (${(estimatedMemoryBytes / 1024 / 1024).toFixed(2)}MB) exceeds 50MB threshold`);
       }
 
       this.cache.set(resolvedPath, {
@@ -305,7 +392,8 @@ class OpaEvaluatorSingleton {
         ruleNames,
         lastAccessed: Date.now(),
         policyPath: resolvedPath,
-        memoryBytes,
+        wasmBinarySize,
+        estimatedMemoryBytes,
       });
     } catch (err) {
       const error = err as Error;
@@ -317,7 +405,7 @@ class OpaEvaluatorSingleton {
    * Evaluates a loaded policy with the given input data.
    */
   async evaluate(options: EvaluateOptions): Promise<EvaluationResult> {
-    const { input, packageName, ruleName = 'allow' } = options;
+    const { input, packageName, ruleName = DEFAULT_RULE_NAME } = options;
 
     // find the cached policy that matches the package name
     const cachedEntry = this.findCachedPolicy(packageName);
@@ -393,7 +481,7 @@ class OpaEvaluatorSingleton {
     options: EvaluateOptions,
     traceOptions: TraceOptions = {}
   ): Promise<EvaluationResultWithTrace> {
-    const { input, packageName, ruleName = 'allow' } = options;
+    const { input, packageName, ruleName = DEFAULT_RULE_NAME } = options;
     const { level = 'full', maxSizeBytes = DEFAULT_MAX_TRACE_SIZE_BYTES } = traceOptions;
 
     // find the cached policy that matches the package name
@@ -442,16 +530,20 @@ class OpaEvaluatorSingleton {
         entrypoint,
       ];
 
+      // use large buffer for OPA output - truncation happens after parsing
+      const opaMaxBuffer = Math.max(maxSizeBytes * 2, 5 * 1024 * 1024); // at least 5MB
       const { stdout } = await execFileAsync('opa', args, {
-        timeout: OPA_EVAL_TIMEOUT_MS,
-        maxBuffer: maxSizeBytes * 2,
+        timeout: getConfig().evalTimeoutMs,
+        maxBuffer: opaMaxBuffer,
       });
 
       const executionTimeMs = performance.now() - startTime;
       const evalResult = JSON.parse(stdout);
 
-      // parse trace from OPA output
-      const trace = this.parseOpaTrace(evalResult, level, maxSizeBytes, cachedEntry.policyPath);
+      // parse trace from OPA output - AC-2.2.7: use source line mappings for accurate line numbers
+      // getSourceLineMappings returns empty Map on failure, which is safe - OPA trace line numbers used as fallback
+      const sourceLineMappings = await this.getSourceLineMappings(cachedEntry.policyPath);
+      const trace = this.parseOpaTrace(evalResult, level, maxSizeBytes, sourceLineMappings);
 
       // extract result value
       const resultValue = evalResult.result?.[0]?.expressions?.[0]?.value;
@@ -469,7 +561,7 @@ class OpaEvaluatorSingleton {
         },
       };
     } catch (err) {
-      const error = err as Error & { stderr?: string; code?: string };
+      const error = err as OpaCliError;
 
       if (error.code === 'ENOENT') {
         throw createOpaError(
@@ -515,8 +607,9 @@ class OpaEvaluatorSingleton {
           }
         }
       }
-    } catch {
-      // if file read fails, return empty mappings
+    } catch (err) {
+      // log warning but don't fail - source line mappings are optional enhancement
+      console.warn(`[OpaEvaluator] Failed to read source file for line mappings: ${policyPath}`, err);
     }
 
     // cache for future use
@@ -527,13 +620,14 @@ class OpaEvaluatorSingleton {
   /**
    * Parses OPA CLI trace output into EvaluationTrace structure.
    * AC-2.2.1-2.2.8: Extracts rules, variables, execution path.
+   * AC-2.2.7: Uses source line mappings for accurate rule-to-line mapping.
    * Note: OPA uses capitalized keys (Op, Node, Location, Locals)
    */
   private parseOpaTrace(
     evalResult: Record<string, unknown>,
     level: TraceLevel,
     maxSizeBytes: number,
-    _policyPath: string
+    sourceLineMappings: Map<string, number>
   ): Omit<EvaluationTrace, 'finalDecision'> {
     const rulesEvaluated: RuleTrace[] = [];
     const executionPath: ExecutionPathEntry[] = [];
@@ -557,13 +651,17 @@ class OpaEvaluatorSingleton {
           const ruleName = this.extractRuleName(node);
           if (ruleName && !seenRules.has(`${ruleName}:${location.row}`)) {
             seenRules.add(`${ruleName}:${location.row}`);
-            
+
             // determine result from event context
             const result = this.determineRuleResult(event, explanation);
-            
+
+            // AC-2.2.7: Use source line mappings for accurate line numbers
+            // Fallback to OPA trace location if rule not found in source mappings
+            const sourceLineNumber = sourceLineMappings.get(ruleName) ?? location.row;
+
             rulesEvaluated.push({
               name: ruleName,
-              line: location.row,
+              line: sourceLineNumber,
               column: location.col,
               result,
             });
@@ -572,7 +670,7 @@ class OpaEvaluatorSingleton {
             executionPath.push({
               rule: ruleName,
               fired: result === 'true',
-              line: location.row,
+              line: sourceLineNumber,
             });
           }
         }
@@ -680,8 +778,15 @@ class OpaEvaluatorSingleton {
    * Finds a cached policy that contains the given package name.
    */
   private findCachedPolicy(packageName?: string): CachedPolicy | undefined {
+    // handle empty cache
+    if (this.cache.size === 0) {
+      return undefined;
+    }
+
     if (!packageName) {
-      return this.cache.values().next().value;
+      // return first cached policy if no package specified
+      const firstEntry = this.cache.values().next();
+      return firstEntry.done ? undefined : firstEntry.value;
     }
 
     for (const cached of this.cache.values()) {
@@ -713,12 +818,13 @@ class OpaEvaluatorSingleton {
   }
 
   /**
-   * Returns total memory usage of all cached WASM instances in bytes.
+   * Returns total estimated memory usage of all cached WASM instances in bytes.
+   * AC-2.1.9: Memory footprint tracking for < 50MB per instance validation.
    */
   getTotalMemoryUsage(): number {
     let total = 0;
     for (const cached of this.cache.values()) {
-      total += cached.memoryBytes;
+      total += cached.estimatedMemoryBytes;
     }
     return total;
   }

@@ -1,12 +1,28 @@
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
 import { OpaEvaluator } from '../../src/lib/opa-evaluator';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const FIXTURES_PATH = join(__dirname, '../../examples/policies');
 
-describe('OpaEvaluator Trace Capture', () => {
+// Check if OPA CLI is available before running tests
+const isOpaAvailable = (): boolean => {
+  try {
+    execSync('opa version', { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const OPA_AVAILABLE = isOpaAvailable();
+
+// Skip all tests if OPA is not installed
+const describeIfOpa = OPA_AVAILABLE ? describe : describe.skip;
+
+describeIfOpa('OpaEvaluator Trace Capture', () => {
   beforeEach(() => {
     OpaEvaluator.clearCache();
   });
@@ -103,27 +119,47 @@ describe('OpaEvaluator Trace Capture', () => {
 
   describe('trace performance', () => {
     // AC-2.2.9: Trace overhead < 20% of evaluation time
-    // Note: This compares trace vs trace (summary vs full), not WASM vs CLI
-    // CLI has inherent process spawn overhead that WASM doesn't have
-    it('should have reasonable trace execution time', async () => {
+    it('should have trace overhead less than 20% compared to summary mode', async () => {
       const policyPath = join(FIXTURES_PATH, 'simple-allow.rego');
       await OpaEvaluator.loadPolicy({ policyPath });
 
-      // measure trace execution times
-      const traceTimings: number[] = [];
+      // measure summary trace times (baseline)
+      const summaryTimings: number[] = [];
       for (let i = 0; i < 5; i++) {
-        const result = await OpaEvaluator.evaluateWithTrace({
-          input: { user: { role: 'admin' } },
-          packageName: 'authz',
-          ruleName: 'allow',
-        });
-        traceTimings.push(result.executionTimeMs);
+        const result = await OpaEvaluator.evaluateWithTrace(
+          {
+            input: { user: { role: 'admin' } },
+            packageName: 'authz',
+            ruleName: 'allow',
+          },
+          { level: 'summary' }
+        );
+        summaryTimings.push(result.executionTimeMs);
       }
-      const avgTrace = traceTimings.reduce((a, b) => a + b, 0) / traceTimings.length;
+      const avgSummary = summaryTimings.reduce((a, b) => a + b, 0) / summaryTimings.length;
 
-      // trace evaluation should complete in reasonable time (< 500ms for simple policy)
-      // this accounts for CLI process spawn overhead
-      expect(avgTrace).toBeLessThan(500);
+      // measure full trace times
+      const fullTimings: number[] = [];
+      for (let i = 0; i < 5; i++) {
+        const result = await OpaEvaluator.evaluateWithTrace(
+          {
+            input: { user: { role: 'admin' } },
+            packageName: 'authz',
+            ruleName: 'allow',
+          },
+          { level: 'full' }
+        );
+        fullTimings.push(result.executionTimeMs);
+      }
+      const avgFull = fullTimings.reduce((a, b) => a + b, 0) / fullTimings.length;
+
+      // full trace overhead vs summary should be < 20%
+      // Note: Both use CLI so we're measuring trace parsing overhead, not WASM vs CLI
+      const overhead = (avgFull - avgSummary) / avgSummary;
+      expect(overhead).toBeLessThan(0.20);
+
+      // also verify absolute time is reasonable (< 500ms)
+      expect(avgFull).toBeLessThan(500);
     });
 
     // AC-2.2.10: Trace data size < 1MB for typical policies
@@ -211,6 +247,32 @@ describe('OpaEvaluator Trace Capture', () => {
       // default max is 1MB - simple policy should be well under
       expect(result.trace.sizeBytes).toBeLessThan(1024 * 1024);
       expect(result.trace.truncated).toBe(false);
+    });
+
+    // MEDIUM-2: Test that truncation logic exists and handles the truncated flag
+    it('should handle trace truncation parameters correctly', async () => {
+      const policyPath = join(FIXTURES_PATH, 'compound-rules.rego');
+      await OpaEvaluator.loadPolicy({ policyPath });
+
+      // use a reasonable max size that allows the evaluation to complete
+      // but tests that the truncation logic is properly wired
+      const result = await OpaEvaluator.evaluateWithTrace(
+        {
+          input: { user: { role: 'admin', status: 'active' } },
+          packageName: 'authz_compound',
+          ruleName: 'allow',
+        },
+        { maxSizeBytes: 10 * 1024 } // 10KB - reasonable limit
+      );
+
+      // verify truncation metadata is present
+      expect(result.trace).toHaveProperty('truncated');
+      expect(result.trace).toHaveProperty('sizeBytes');
+      expect(typeof result.trace.truncated).toBe('boolean');
+      expect(typeof result.trace.sizeBytes).toBe('number');
+      // trace should respect the size limit (either truncated or naturally smaller)
+      // Note: sizeBytes is measured after any truncation occurs
+      expect(result.trace.sizeBytes).toBeLessThanOrEqual(10 * 1024);
     });
   });
 

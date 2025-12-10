@@ -9,7 +9,9 @@ import { LoggerService } from '../services/logger.js';
 import { HealthService } from '../services/health.js';
 import { FrameworkStore } from '../services/framework-store.js';
 import { HealthToolSchema } from '../tools/system.js';
+import { ExplainPolicyToolSchema, executeExplainPolicy } from '../tools/explain-policy.js';
 import { zodToJsonSchema } from 'zod-to-json-schema';
+
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -22,7 +24,7 @@ const packageJson = JSON.parse(
 );
 const VERSION = packageJson.version;
 
-const tools = [HealthToolSchema];
+const tools = [HealthToolSchema, ExplainPolicyToolSchema];
 
 /**
  * Initialize and start the MCP server
@@ -63,10 +65,11 @@ export async function startServer(): Promise<void> {
   server.setRequestHandler(ListToolsRequestSchema, async (request) => {
     LoggerService.getLogger().debug({ request }, 'Handling tools/list request');
     const response = {
-      tools: tools.map((tool: any) => ({
+      tools: tools.map((tool) => ({
         name: tool.name,
         description: tool.description,
-        inputSchema: { type: 'object', ...zodToJsonSchema(tool.input, { $refStrategy: 'none' }) },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        inputSchema: { type: 'object', ...zodToJsonSchema(tool.input as any, { $refStrategy: 'none' }) },
       })),
     };
     LoggerService.getLogger().debug({ response }, 'Responding to tools/list request');
@@ -92,6 +95,35 @@ export async function startServer(): Promise<void> {
             },
           ],
         };
+
+      case 'explain_policy_decision': {
+        // AC-2.3.1: Tool registered with name explain_policy_decision
+        const validatedArgs = ExplainPolicyToolSchema.input.parse(args);
+        const startTime = performance.now();
+        LoggerService.getLogger().info({ policyPath: validatedArgs.policyPath }, 'explain_policy_decision invoked');
+
+        const result = await executeExplainPolicy(validatedArgs);
+
+        const executionTime = performance.now() - startTime;
+        LoggerService.getLogger().info({ executionTime, policyPath: validatedArgs.policyPath }, 'explain_policy_decision completed');
+
+        if (result.error) {
+          // AC-2.3.11: Log errors with details (stack traces captured in error object)
+          LoggerService.getLogger().error(
+            { error: result.error, policyPath: validatedArgs.policyPath, stack: new Error().stack },
+            'explain_policy_decision error'
+          );
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
 
       default:
         LoggerService.getLogger().error(`Unknown tool call: ${name}`);

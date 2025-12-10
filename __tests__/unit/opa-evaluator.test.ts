@@ -1,12 +1,29 @@
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
 import { OpaEvaluator } from '../../src/lib/opa-evaluator';
+import type { OpaError } from '../../src/types/opa';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const FIXTURES_PATH = join(__dirname, '../../examples/policies');
 
-describe('OpaEvaluator', () => {
+// Check if OPA CLI is available before running tests
+const isOpaAvailable = (): boolean => {
+  try {
+    execSync('opa version', { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const OPA_AVAILABLE = isOpaAvailable();
+
+// Skip all tests if OPA is not installed
+const describeIfOpa = OPA_AVAILABLE ? describe : describe.skip;
+
+describeIfOpa('OpaEvaluator', () => {
   beforeEach(() => {
     OpaEvaluator.clearCache();
   });
@@ -89,11 +106,12 @@ describe('OpaEvaluator', () => {
   describe('error handling', () => {
     it('should return syntax error with line number for invalid policy', async () => {
       const policyPath = join(FIXTURES_PATH, 'invalid-syntax.rego');
-      
+
       try {
         await OpaEvaluator.loadPolicy({ policyPath });
         fail('Expected SYNTAX_ERROR to be thrown');
-      } catch (error: any) {
+      } catch (err: unknown) {
+        const error = err as OpaError;
         expect(error.code).toBe('SYNTAX_ERROR');
         expect(error.message).toContain('syntax');
         // AC-2.1.7: verify line number is extracted (may be undefined if OPA doesn't provide it)
