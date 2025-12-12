@@ -244,6 +244,25 @@ allow := true
     });
   });
 
+  describe('AC-3.1.6: Repository updates supported via git pull', () => {
+    it('should return error for non-existent repository', async () => {
+      const result = await repoManager.updateRepository('non-existent-repo');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('not found');
+    });
+
+    it('should attempt update on existing repository directory', async () => {
+      // Create a fake repo directory (not a real git repo, so pull will fail)
+      const repoPath = join(testDir, 'repos', 'test-update-repo');
+      mkdirSync(repoPath, { recursive: true });
+
+      const result = await repoManager.updateRepository('test-update-repo');
+      // Will fail because it's not a real git repo, but should handle gracefully
+      expect(result.success).toBe(false);
+      expect(result.error).toBeDefined();
+    });
+  });
+
   describe('AC-3.1.7: Custom repositories can be added', () => {
     it('should validate custom repository has name and URL', async () => {
       const result = await repoManager.addCustomRepository({ name: '', url: '', enabled: true });

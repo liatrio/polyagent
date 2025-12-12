@@ -8,7 +8,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { readdir } from 'fs/promises';
 import { join } from 'path';
-import { simpleGit, SimpleGit } from 'simple-git';
+import { simpleGit } from 'simple-git';
 
 /** Simple debug logger - can be replaced with proper logger later */
 const debug = (msg: string) => {
@@ -102,13 +102,11 @@ export class RepoManager {
   private baseDir: string;
   private reposDir: string;
   private indexPath: string;
-  private git: SimpleGit;
 
   constructor(baseDir: string) {
     this.baseDir = baseDir;
     this.reposDir = join(baseDir, 'repos');
     this.indexPath = join(baseDir, 'index.json');
-    this.git = simpleGit();
   }
 
   /**
