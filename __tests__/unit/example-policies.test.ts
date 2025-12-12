@@ -110,5 +110,25 @@ describe('Example Policies (Story 2.4)', () => {
 
       expect(result.allowed).toBe(true);
     });
+
+    it('should allow editor role to write to document', async () => {
+      if (!existsSync(policyPath)) {
+        throw new Error('Policy file must exist for this test');
+      }
+
+      await OpaEvaluator.loadPolicy({ policyPath });
+
+      const result = await OpaEvaluator.evaluate({
+        input: {
+          user: { name: 'bob', role: 'editor' },
+          action: 'write',
+          resource: { type: 'document' }
+        },
+        packageName: 'rbac',
+        ruleName: 'allow'
+      });
+
+      expect(result.allowed).toBe(true);
+    });
   });
 });

@@ -1,9 +1,29 @@
 import chalk from 'chalk';
+import { existsSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { ConfigService } from '../config/index.js';
 import { FrameworkStore } from '../services/framework-store.js';
 import { LoggerService } from '../services/logger.js';
+import { OpaEvaluator } from '../lib/opa-evaluator.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+
+// Find project root by looking for package.json
+function findProjectRoot(): string {
+  // In ESM, use import.meta.url to get current file location
+  const currentFile = fileURLToPath(import.meta.url);
+  let dir = dirname(currentFile);
+
+  // Walk up to find package.json (indicates project root)
+  while (dir !== '/') {
+    if (existsSync(join(dir, 'package.json'))) {
+      return dir;
+    }
+    dir = dirname(dir);
+  }
+  return process.cwd();
+}
 
 export async function runVerify(): Promise<void> {
   console.log(chalk.blue('PolyAgent Verification'));
@@ -84,9 +104,55 @@ export async function runVerify(): Promise<void> {
     success = false;
   }
   
-  // 4. OPA/RAG verification (Placeholders)
+  // 4. OPA Engine verification using example policy
   process.stdout.write('Checking OPA engine... ');
-  console.log(chalk.yellow('SKIPPED (Pending Epic 2)'));
+  try {
+    const projectRoot = findProjectRoot();
+    const examplePolicyPath = join(projectRoot, 'examples/policies/rbac-simple.rego');
+
+    if (!existsSync(examplePolicyPath)) {
+      console.log(chalk.yellow('SKIPPED (Example policy not found)'));
+    } else {
+      // Load and evaluate the example policy
+      await OpaEvaluator.loadPolicy({ policyPath: examplePolicyPath });
+
+      // Test with admin user (should allow)
+      const adminResult = await OpaEvaluator.evaluate({
+        input: {
+          user: { name: 'admin', role: 'admin' },
+          action: 'write',
+          resource: { type: 'document' }
+        },
+        packageName: 'rbac',
+        ruleName: 'allow'
+      });
+
+      // Test with viewer user writing (should deny)
+      const viewerResult = await OpaEvaluator.evaluate({
+        input: {
+          user: { name: 'viewer', role: 'viewer' },
+          action: 'write',
+          resource: { type: 'document' }
+        },
+        packageName: 'rbac',
+        ruleName: 'allow'
+      });
+
+      // Verify expected results
+      if (adminResult.allowed === true && viewerResult.allowed === false) {
+        console.log(chalk.green('OK (Policy evaluation working)'));
+      } else {
+        console.log(chalk.red('FAILED (Unexpected policy results)'));
+        success = false;
+      }
+
+      OpaEvaluator.clearCache();
+    }
+  } catch (err) {
+    console.log(chalk.red('FAILED'));
+    console.error('OPA verification error:', err);
+    success = false;
+  }
 
   process.stdout.write('Checking RAG system... ');
   console.log(chalk.yellow('SKIPPED (Pending Epic 3)'));
