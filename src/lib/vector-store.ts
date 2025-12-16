@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from 'fs';
+import { existsSync } from 'fs';
+import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { homedir } from 'os';
 import type { PolicyIndexEntry } from './repo-manager.js';
@@ -176,10 +177,10 @@ const createVectorStore = (baseDir: string): VectorStore => {
       throw new Error(`Embeddings cache not found: ${embeddingsPath}`);
     }
 
-    const indexRaw = JSON.parse(readFileSync(indexPath, 'utf-8')) as PolicyIndexFile;
+    const indexRaw = JSON.parse(await readFile(indexPath, 'utf-8')) as PolicyIndexFile;
     const indexEntries = indexRaw.entries ?? [];
 
-    const embeddingsRaw = JSON.parse(readFileSync(embeddingsPath, 'utf-8')) as EmbeddingsFile;
+    const embeddingsRaw = JSON.parse(await readFile(embeddingsPath, 'utf-8')) as EmbeddingsFile;
     const embeddingEntries = embeddingsRaw.entries ?? [];
 
     const dimensions = embeddingsRaw.metadata?.dimensions ?? embeddingEntries[0]?.embedding?.length;
