@@ -53,7 +53,6 @@ const SearchExamplesInput = z.object({
     .int()
     .min(1)
     .max(10)
-    .optional()
     .default(3)
     .describe('Maximum number of results to return (1-10, default: 3)'),
   filterRepo: z
@@ -113,7 +112,7 @@ export const SearchExamplesToolSchema = {
   output: SearchExamplesOutput,
 };
 
-export type SearchExamplesInputType = z.infer<typeof SearchExamplesInput>;
+export type SearchExamplesInputType = z.input<typeof SearchExamplesInput>;
 export type SearchExamplesOutputType = z.infer<typeof SearchExamplesOutput>;
 
 /**
