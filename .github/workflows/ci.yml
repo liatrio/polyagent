@@ -4,15 +4,6 @@ on:
   workflow_call:
   pull_request:
     branches: [main]
-  push:
-    branches: [main]
-    tags-ignore:
-      - "v*"
-    paths-ignore:
-      - README.md
-      - LICENSE
-      - "docs/**"
-      - "*.md"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
