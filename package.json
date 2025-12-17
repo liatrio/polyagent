@@ -1,6 +1,6 @@
 {
   "name": "@polyagent/mcp-server",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "MCP server that bridges AI coding assistants with the OPA policy ecosystem",
   "type": "module",
   "main": "dist/server.js",
