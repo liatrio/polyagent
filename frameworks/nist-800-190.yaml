@@ -1,7 +1,36 @@
 framework:
-  id: nist-800-190
-  name: "NIST 800-190 Application Container Security Guide"
+  id: "nist-800-190"
+  name: "NIST SP 800-190 Application Container Security Guide"
   version: "1.0"
   url: "https://csrc.nist.gov/publications/detail/sp/800-190/final"
 
-requirements: []
+requirements:
+  - id: "3.1.1"
+    title: "Image Vulnerabilities"
+    description: "Container images should be scanned for vulnerabilities before deployment."
+    rationale: "Images often contain outdated packages with known CVEs that can be exploited."
+    controls:
+      - "Use automated image scanners in CI/CD"
+      - "Block deployment of images with critical vulnerabilities"
+    references:
+      - "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-190.pdf#page=15"
+
+  - id: "3.1.2"
+    title: "Image Configuration Defects"
+    description: "Images should be configured securely, avoiding defaults that increase attack surface."
+    rationale: "Misconfigured images (e.g., running as root, exposed ports) provide easy entry points for attackers."
+    controls:
+      - "Use non-root users in Dockerfiles"
+      - "Remove unnecessary setuid/setgid binaries"
+    references:
+      - "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-190.pdf#page=16"
+
+  - id: "3.1.3"
+    title: "Embedded Malware and Clear Text Secrets"
+    description: "Images should not contain malware or hardcoded secrets."
+    rationale: "Secrets embedded in images are accessible to anyone with access to the registry."
+    controls:
+      - "Scan images for malware signatures"
+      - "Use secret management tools instead of embedding keys"
+    references:
+      - "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-190.pdf#page=17"

@@ -1,0 +1,23 @@
+# Source files
+src/
+!dist/
+__tests__/
+.bmad/
+.windsurf/
+.github/
+docs/
+frameworks/
+*.ts
+tsconfig.json
+jest.config.js
+eslint.config.js
+.prettierrc
+
+# Logs and local config
+logs/
+.env
+
+# Editor files
+.vscode/
+.idea/
+*.swp

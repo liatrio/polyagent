@@ -1,0 +1,11 @@
+{
+  "user": {
+    "name": "bob",
+    "role": "admin"
+  },
+  "action": "write",
+  "resource": {
+    "type": "document",
+    "id": "doc-456"
+  }
+}

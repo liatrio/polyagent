@@ -1,7 +1,37 @@
 framework:
-  id: openssf-slsa
-  name: "OpenSSF SLSA (Supply-chain Levels for Software Artifacts)"
+  id: "openssf-slsa"
+  name: "Supply-chain Levels for Software Artifacts (SLSA)"
   version: "1.0"
-  url: "https://slsa.dev"
+  url: "https://slsa.dev/spec/v1.0/"
 
-requirements: []
+requirements:
+  - id: "build-l1"
+    title: "Build Level 1: Provenance Exists"
+    description: "The build process must generate provenance that describes how the package was built."
+    rationale: "Provenance allows consumers to verify the identity of the builder and the integrity of the artifact."
+    controls:
+      - "Generate provenance during the build process"
+      - "Sign the provenance (optional for L1)"
+    references:
+      - "https://slsa.dev/spec/v1.0/requirements#build-l1"
+
+  - id: "build-l2"
+    title: "Build Level 2: Signed Provenance"
+    description: "Provenance must be signed by the build service and verifiable by the consumer."
+    rationale: "Signing prevents tampering with the provenance metadata."
+    controls:
+      - "Sign provenance using a cryptographic key"
+      - "Use a hosted build service"
+    references:
+      - "https://slsa.dev/spec/v1.0/requirements#build-l2"
+
+  - id: "build-l3"
+    title: "Build Level 3: Hardened Build Service"
+    description: "The build platform must be hardened to prevent tampering and ensure the build is ephemeral and isolated."
+    rationale: "Hardening ensures that the build process itself cannot be compromised to inject malicious code."
+    controls:
+      - "Build service must be ephemeral"
+      - "Build service must be isolated"
+      - "Provenance must be non-falsifiable"
+    references:
+      - "https://slsa.dev/spec/v1.0/requirements#build-l3"

@@ -1,0 +1,11 @@
+{
+  "user": {
+    "name": "alice",
+    "role": "viewer"
+  },
+  "action": "write",
+  "resource": {
+    "type": "document",
+    "id": "doc-123"
+  }
+}
