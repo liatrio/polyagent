@@ -142,7 +142,7 @@ export class EmbeddingService {
     if (!apiKey) {
       throw new Error(
         'OpenAI API key not found. Set the OPENAI_API_KEY environment variable.\n' +
-          'Get your API key at: https://platform.openai.com/api-keys'
+          'Get your API key at: https://platform.openai.com/api-keys',
       );
     }
 
@@ -269,7 +269,7 @@ export class EmbeddingService {
    */
   async generateAllEmbeddings(
     entries: PolicyIndexEntry[],
-    onProgress?: ProgressCallback
+    onProgress?: ProgressCallback,
   ): Promise<EmbeddingStats> {
     // Load existing cache
     await this.loadEmbeddings();
@@ -407,7 +407,7 @@ export class EmbeddingService {
       // Validate model version
       if (cacheData.metadata.modelName !== EMBEDDING_MODEL) {
         debug(
-          `Model mismatch: cached=${cacheData.metadata.modelName}, current=${EMBEDDING_MODEL}. Rebuilding.`
+          `Model mismatch: cached=${cacheData.metadata.modelName}, current=${EMBEDDING_MODEL}. Rebuilding.`,
         );
         return new Map();
       }

@@ -73,7 +73,9 @@ export const createVectorStoreData = (args: {
   for (let i = 0; i < vectors.length; i++) {
     const vec = vectors[i];
     if (vec.length !== dimensions) {
-      throw new Error(`Embedding dimension mismatch at index ${i}: expected ${dimensions}, got ${vec.length}`);
+      throw new Error(
+        `Embedding dimension mismatch at index ${i}: expected ${dimensions}, got ${vec.length}`,
+      );
     }
     norms[i] = l2Norm(vec);
   }
@@ -89,11 +91,11 @@ export const createVectorStoreData = (args: {
 export const searchVectorStore = (
   data: VectorStoreData,
   queryEmbedding: Float32Array,
-  options: SearchOptions = {}
+  options: SearchOptions = {},
 ): SearchResult[] => {
   if (queryEmbedding.length !== data.dimensions) {
     throw new Error(
-      `Query embedding dimension mismatch: expected ${data.dimensions}, got ${queryEmbedding.length}`
+      `Query embedding dimension mismatch: expected ${data.dimensions}, got ${queryEmbedding.length}`,
     );
   }
 
@@ -192,7 +194,7 @@ const createVectorStore = (baseDir: string): VectorStore => {
     for (const item of embeddingEntries) {
       if (item.embedding.length !== dimensions) {
         throw new Error(
-          `Embedding dimension mismatch for id=${item.id}: expected ${dimensions}, got ${item.embedding.length}`
+          `Embedding dimension mismatch for id=${item.id}: expected ${dimensions}, got ${item.embedding.length}`,
         );
       }
       embeddingById.set(item.id, Float32Array.from(item.embedding));

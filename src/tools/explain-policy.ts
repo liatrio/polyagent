@@ -42,9 +42,15 @@ const ExplainPolicyInput = z.object({
   /** JSON string containing input data for policy evaluation */
   inputData: z.string().describe('JSON string containing input data for policy evaluation'),
   /** Optional: Package name to target (auto-detected if not provided) */
-  packageName: z.string().optional().describe('Package name to target (auto-detected if not provided)'),
+  packageName: z
+    .string()
+    .optional()
+    .describe('Package name to target (auto-detected if not provided)'),
   /** Optional: Rule name to evaluate (defaults to "allow" if not provided) */
-  ruleName: z.string().optional().describe('Rule name to evaluate (defaults to "allow" if not provided)'),
+  ruleName: z
+    .string()
+    .optional()
+    .describe('Rule name to evaluate (defaults to "allow" if not provided)'),
 });
 
 /**
@@ -127,7 +133,7 @@ const formatTrace = (rules: RuleTrace[]): ExplainPolicyOutputType['trace'] =>
  * AC-2.3.7: Returns result, trace[], and optional error
  */
 export async function executeExplainPolicy(
-  input: ExplainPolicyInputType
+  input: ExplainPolicyInputType,
 ): Promise<ExplainPolicyOutputType> {
   const { policyPath, inputData, packageName, ruleName } = input;
 
@@ -179,7 +185,7 @@ export async function executeExplainPolicy(
         packageName,
         ruleName,
       },
-      { level: 'full' }
+      { level: 'full' },
     );
 
     // AC-2.3.7: Return result, trace[], and optional error

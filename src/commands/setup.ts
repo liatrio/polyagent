@@ -10,9 +10,10 @@ export async function runSetup(): Promise<void> {
 
   // Detect existing tools
   const hasClaude = existsSync(join(homedir(), '.claude'));
-  const hasCursor = existsSync(join(homedir(), '.cursor')) || 
-                    existsSync(join(homedir(), 'Library/Application Support/Cursor')) ||
-                    existsSync(join(homedir(), '.cursor-tutor')); // Just in case
+  const hasCursor =
+    existsSync(join(homedir(), '.cursor')) ||
+    existsSync(join(homedir(), 'Library/Application Support/Cursor')) ||
+    existsSync(join(homedir(), '.cursor-tutor')); // Just in case
 
   if (hasClaude) console.log(chalk.green('✓ Detected Claude Code'));
   if (hasCursor) console.log(chalk.green('✓ Detected Cursor'));
@@ -23,7 +24,7 @@ export async function runSetup(): Promise<void> {
       type: 'password',
       name: 'openAiApiKey',
       message: 'Enter OpenAI API Key (for RAG features, optional):',
-      mask: '*'
+      mask: '*',
     },
     {
       type: 'checkbox',
@@ -31,9 +32,9 @@ export async function runSetup(): Promise<void> {
       message: 'Which tools should be configured automatically?',
       choices: [
         { name: 'Claude Code', value: 'claude', checked: hasClaude },
-        { name: 'Cursor (Manual instructions)', value: 'cursor', checked: hasCursor } // Inquirer handles disabled slightly differently depending on version, but we'll just let user select it to get instructions
-      ]
-    }
+        { name: 'Cursor (Manual instructions)', value: 'cursor', checked: hasCursor }, // Inquirer handles disabled slightly differently depending on version, but we'll just let user select it to get instructions
+      ],
+    },
   ]);
 
   // Create config
@@ -47,18 +48,18 @@ export async function runSetup(): Promise<void> {
     embedding: {
       provider: 'openai',
       apiKey: answers.openAiApiKey || '',
-      model: 'text-embedding-3-small'
+      model: 'text-embedding-3-small',
     },
     policyExamples: {
       repos: [],
-      updateInterval: '7d'
+      updateInterval: '7d',
     },
     opa: {
-      engine: 'wasm'
+      engine: 'wasm',
     },
     logging: {
-      level: 'info'
-    }
+      level: 'info',
+    },
   };
 
   const configPath = join(configDir, 'config.json');
@@ -67,8 +68,8 @@ export async function runSetup(): Promise<void> {
 
   // Configure Claude
   if (answers.configureTools.includes('claude')) {
-    const claudeConfigPath = join(homedir(), '.claude/mcp_config.json'); 
-    
+    const claudeConfigPath = join(homedir(), '.claude/mcp_config.json');
+
     try {
       let mcpConfig: any = { mcpServers: {} };
       if (existsSync(claudeConfigPath)) {
@@ -80,8 +81,8 @@ export async function runSetup(): Promise<void> {
           mcpConfig = { mcpServers: {} };
         }
       } else {
-          const claudeDir = dirname(claudeConfigPath);
-          if(!existsSync(claudeDir)) mkdirSync(claudeDir, { recursive: true });
+        const claudeDir = dirname(claudeConfigPath);
+        if (!existsSync(claudeDir)) mkdirSync(claudeDir, { recursive: true });
       }
 
       // Ensure mcpServers object exists
@@ -89,7 +90,7 @@ export async function runSetup(): Promise<void> {
 
       mcpConfig.mcpServers['polyagent'] = {
         command: 'polyagent-mcp',
-        args: ['start']
+        args: ['start'],
       };
 
       writeFileSync(claudeConfigPath, JSON.stringify(mcpConfig, null, 2));
@@ -98,18 +99,24 @@ export async function runSetup(): Promise<void> {
       console.log(chalk.red(`✗ Failed to configure Claude Code: ${err}`));
     }
   }
-  
+
   if (answers.configureTools.includes('cursor')) {
-      console.log(chalk.yellow('\nFor Cursor, please add the following to your MCP configuration manually:'));
-      console.log(chalk.white(`
+    console.log(
+      chalk.yellow('\nFor Cursor, please add the following to your MCP configuration manually:'),
+    );
+    console.log(
+      chalk.white(`
 {
   "polyagent": {
     "command": "polyagent-mcp",
     "args": ["start"]
   }
 }
-      `));
+      `),
+    );
   }
 
-  console.log(chalk.blue('\nSetup complete! Run `polyagent-mcp verify` to test your installation.'));
+  console.log(
+    chalk.blue('\nSetup complete! Run `polyagent-mcp verify` to test your installation.'),
+  );
 }

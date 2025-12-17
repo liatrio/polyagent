@@ -59,7 +59,8 @@ interface OpaEvaluatorConfig {
 }
 
 const getConfig = (): OpaEvaluatorConfig => ({
-  buildTimeoutMs: parseInt(process.env.OPA_BUILD_TIMEOUT_MS || '', 10) || DEFAULT_OPA_BUILD_TIMEOUT_MS,
+  buildTimeoutMs:
+    parseInt(process.env.OPA_BUILD_TIMEOUT_MS || '', 10) || DEFAULT_OPA_BUILD_TIMEOUT_MS,
   evalTimeoutMs: parseInt(process.env.OPA_EVAL_TIMEOUT_MS || '', 10) || DEFAULT_OPA_EVAL_TIMEOUT_MS,
 });
 
@@ -92,7 +93,7 @@ interface CachedPolicy {
 const createOpaError = (
   code: OpaErrorCode,
   message: string,
-  options?: Partial<Omit<OpaError, 'code' | 'message'>>
+  options?: Partial<Omit<OpaError, 'code' | 'message'>>,
 ): OpaError => ({
   code,
   message,
@@ -127,7 +128,9 @@ class OpaEvaluatorSingleton {
       if (versionMatch) {
         const version = versionMatch[1];
         if (this.compareVersions(version, MIN_OPA_VERSION) < 0) {
-          console.warn(`[OpaEvaluator] OPA version ${version} is below minimum ${MIN_OPA_VERSION}. Some features may not work correctly.`);
+          console.warn(
+            `[OpaEvaluator] OPA version ${version} is below minimum ${MIN_OPA_VERSION}. Some features may not work correctly.`,
+          );
         }
       }
     } catch {
@@ -172,7 +175,7 @@ class OpaEvaluatorSingleton {
       throw createOpaError(
         'PATH_SECURITY_ERROR',
         `Path "${policyPath}" is outside the allowed base path "${basePath}"`,
-        { suggestions: ['Ensure the policy file is within the project directory'] }
+        { suggestions: ['Ensure the policy file is within the project directory'] },
       );
     }
   }
@@ -204,7 +207,22 @@ class OpaEvaluatorSingleton {
     while ((match = ruleRegex.exec(regoContent)) !== null) {
       const ruleName = match[1];
       // filter out keywords
-      if (!['package', 'import', 'as', 'default', 'else', 'some', 'every', 'in', 'contains', 'if', 'with', 'not'].includes(ruleName)) {
+      if (
+        ![
+          'package',
+          'import',
+          'as',
+          'default',
+          'else',
+          'some',
+          'every',
+          'in',
+          'contains',
+          'if',
+          'with',
+          'not',
+        ].includes(ruleName)
+      ) {
         rules.add(ruleName);
       }
     }
@@ -222,8 +240,16 @@ class OpaEvaluatorSingleton {
     const colMatch = stderr.match(/col(?:umn)?\s+(\d+)/i);
 
     return {
-      line: locationMatch ? parseInt(locationMatch[1], 10) : (lineMatch ? parseInt(lineMatch[1], 10) : undefined),
-      column: locationMatch ? parseInt(locationMatch[2], 10) : (colMatch ? parseInt(colMatch[1], 10) : undefined),
+      line: locationMatch
+        ? parseInt(locationMatch[1], 10)
+        : lineMatch
+          ? parseInt(lineMatch[1], 10)
+          : undefined,
+      column: locationMatch
+        ? parseInt(locationMatch[2], 10)
+        : colMatch
+          ? parseInt(colMatch[1], 10)
+          : undefined,
     };
   }
 
@@ -234,7 +260,7 @@ class OpaEvaluatorSingleton {
   private async compileToWasm(
     policyPath: string,
     packageNames: string[],
-    ruleNames: string[]
+    ruleNames: string[],
   ): Promise<Buffer> {
     const tmpDir = await mkdtemp(join(tmpdir(), 'opa-wasm-'));
     const bundlePath = join(tmpDir, 'bundle.tar.gz');
@@ -256,9 +282,11 @@ class OpaEvaluatorSingleton {
       // compile using opa build
       const args = [
         'build',
-        '-t', 'wasm',
-        '-o', bundlePath,
-        ...entrypoints.flatMap(e => ['-e', e]),
+        '-t',
+        'wasm',
+        '-o',
+        bundlePath,
+        ...entrypoints.flatMap((e) => ['-e', e]),
         policyPath,
       ];
 
@@ -315,11 +343,9 @@ class OpaEvaluatorSingleton {
     } catch (err) {
       const error = err as NodeJS.ErrnoException;
       if (error.code === 'ENOENT') {
-        throw createOpaError(
-          'FILE_NOT_FOUND',
-          `Policy file not found: ${policyPath}`,
-          { suggestions: ['Check that the file path is correct', 'Ensure the file exists'] }
-        );
+        throw createOpaError('FILE_NOT_FOUND', `Policy file not found: ${policyPath}`, {
+          suggestions: ['Check that the file path is correct', 'Ensure the file exists'],
+        });
       }
       throw createOpaError('FILE_NOT_FOUND', `Failed to read policy file: ${error.message}`);
     }
@@ -329,11 +355,9 @@ class OpaEvaluatorSingleton {
     const ruleNames = this.extractRuleNames(regoContent);
 
     if (packageNames.length === 0) {
-      throw createOpaError(
-        'SYNTAX_ERROR',
-        'No package declaration found in policy file',
-        { suggestions: ['Add a package declaration, e.g., "package authz"'] }
-      );
+      throw createOpaError('SYNTAX_ERROR', 'No package declaration found in policy file', {
+        suggestions: ['Add a package declaration, e.g., "package authz"'],
+      });
     }
 
     // compile to wasm using opa cli
@@ -348,14 +372,22 @@ class OpaEvaluatorSingleton {
         throw createOpaError(
           'COMPILATION_ERROR',
           'OPA CLI not found. Install OPA to compile policies.',
-          { suggestions: ['Install OPA: brew install opa (macOS) or download from openpolicyagent.org'] }
+          {
+            suggestions: [
+              'Install OPA: brew install opa (macOS) or download from openpolicyagent.org',
+            ],
+          },
         );
       }
 
       const stderr = error.stderr || error.message;
       const syntaxInfo = this.parseOpaError(stderr);
 
-      if (stderr.includes('parse') || stderr.includes('syntax') || stderr.includes('rego_parse_error')) {
+      if (
+        stderr.includes('parse') ||
+        stderr.includes('syntax') ||
+        stderr.includes('rego_parse_error')
+      ) {
         throw createOpaError('SYNTAX_ERROR', `Policy syntax error: ${stderr}`, {
           ...syntaxInfo,
           suggestions: ['Check the Rego syntax', 'Ensure braces and quotes are properly matched'],
@@ -377,13 +409,16 @@ class OpaEvaluatorSingleton {
       // Also account for initial memory pages allocated by WASM runtime
       const wasmBinarySize = wasmBuffer.length;
       const initialMemoryPages = 16; // typical default, ~1MB
-      const estimatedMemoryBytes = wasmBinarySize +
-        (initialMemoryPages * WASM_PAGE_SIZE_BYTES) +
-        (wasmBinarySize * HEAP_ESTIMATE_MULTIPLIER);
+      const estimatedMemoryBytes =
+        wasmBinarySize +
+        initialMemoryPages * WASM_PAGE_SIZE_BYTES +
+        wasmBinarySize * HEAP_ESTIMATE_MULTIPLIER;
 
       // warn if estimated memory exceeds threshold (AC-2.1.9)
       if (estimatedMemoryBytes > MAX_WASM_MEMORY_BYTES) {
-        console.warn(`[OpaEvaluator] Policy ${policyPath} estimated memory (${(estimatedMemoryBytes / 1024 / 1024).toFixed(2)}MB) exceeds 50MB threshold`);
+        console.warn(
+          `[OpaEvaluator] Policy ${policyPath} estimated memory (${(estimatedMemoryBytes / 1024 / 1024).toFixed(2)}MB) exceeds 50MB threshold`,
+        );
       }
 
       this.cache.set(resolvedPath, {
@@ -416,10 +451,11 @@ class OpaEvaluatorSingleton {
         'INVALID_PACKAGE',
         `Package "${packageName}" not found in loaded policies`,
         {
-          suggestions: availablePackages.length > 0
-            ? [`Available packages: ${availablePackages.join(', ')}`]
-            : ['Load a policy first using loadPolicy()'],
-        }
+          suggestions:
+            availablePackages.length > 0
+              ? [`Available packages: ${availablePackages.join(', ')}`]
+              : ['Load a policy first using loadPolicy()'],
+        },
       );
     }
 
@@ -428,7 +464,7 @@ class OpaEvaluatorSingleton {
       throw createOpaError(
         'INVALID_RULE',
         `Rule "${ruleName}" not found in package "${packageName}"`,
-        { suggestions: [`Available rules: ${cachedEntry.ruleNames.join(', ')}`] }
+        { suggestions: [`Available rules: ${cachedEntry.ruleNames.join(', ')}`] },
       );
     }
 
@@ -465,7 +501,7 @@ class OpaEvaluatorSingleton {
         throw createOpaError(
           'INVALID_RULE',
           `Rule "${ruleName}" not found in package "${packageName}"`,
-          { suggestions: [`Available rules: ${cachedEntry.ruleNames.join(', ')}`] }
+          { suggestions: [`Available rules: ${cachedEntry.ruleNames.join(', ')}`] },
         );
       }
 
@@ -479,7 +515,7 @@ class OpaEvaluatorSingleton {
    */
   async evaluateWithTrace(
     options: EvaluateOptions,
-    traceOptions: TraceOptions = {}
+    traceOptions: TraceOptions = {},
   ): Promise<EvaluationResultWithTrace> {
     const { input, packageName, ruleName = DEFAULT_RULE_NAME } = options;
     const { level = 'full', maxSizeBytes = DEFAULT_MAX_TRACE_SIZE_BYTES } = traceOptions;
@@ -493,10 +529,11 @@ class OpaEvaluatorSingleton {
         'INVALID_PACKAGE',
         `Package "${packageName}" not found in loaded policies`,
         {
-          suggestions: availablePackages.length > 0
-            ? [`Available packages: ${availablePackages.join(', ')}`]
-            : ['Load a policy first using loadPolicy()'],
-        }
+          suggestions:
+            availablePackages.length > 0
+              ? [`Available packages: ${availablePackages.join(', ')}`]
+              : ['Load a policy first using loadPolicy()'],
+        },
       );
     }
 
@@ -505,7 +542,7 @@ class OpaEvaluatorSingleton {
       throw createOpaError(
         'INVALID_RULE',
         `Rule "${ruleName}" not found in package "${packageName}"`,
-        { suggestions: [`Available rules: ${cachedEntry.ruleNames.join(', ')}`] }
+        { suggestions: [`Available rules: ${cachedEntry.ruleNames.join(', ')}`] },
       );
     }
 
@@ -523,10 +560,14 @@ class OpaEvaluatorSingleton {
       // use OPA CLI eval with explain for trace capture
       const args = [
         'eval',
-        '--data', cachedEntry.policyPath,
-        '--input', inputPath,
-        '--format', 'json',
-        '--explain', level === 'full' ? 'full' : 'notes',
+        '--data',
+        cachedEntry.policyPath,
+        '--input',
+        inputPath,
+        '--format',
+        'json',
+        '--explain',
+        level === 'full' ? 'full' : 'notes',
         entrypoint,
       ];
 
@@ -567,11 +608,18 @@ class OpaEvaluatorSingleton {
         throw createOpaError(
           'COMPILATION_ERROR',
           'OPA CLI not found. Install OPA to use trace evaluation.',
-          { suggestions: ['Install OPA: brew install opa (macOS) or download from openpolicyagent.org'] }
+          {
+            suggestions: [
+              'Install OPA: brew install opa (macOS) or download from openpolicyagent.org',
+            ],
+          },
         );
       }
 
-      throw createOpaError('EVALUATION_ERROR', `Policy evaluation with trace failed: ${error.message}`);
+      throw createOpaError(
+        'EVALUATION_ERROR',
+        `Policy evaluation with trace failed: ${error.message}`,
+      );
     } finally {
       // cleanup temp directory
       await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
@@ -594,22 +642,40 @@ class OpaEvaluatorSingleton {
     try {
       const content = await readFile(policyPath, 'utf-8');
       const lines = content.split('\n');
-      
+
       // match rule definitions with line numbers
       const ruleRegex = /^(?:default\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:if\s*\{|\{|:?=|\[)/;
-      
+
       for (let i = 0; i < lines.length; i++) {
         const match = lines[i].match(ruleRegex);
         if (match) {
           const ruleName = match[1];
-          if (!['package', 'import', 'as', 'default', 'else', 'some', 'every', 'in', 'contains', 'if', 'with', 'not'].includes(ruleName)) {
+          if (
+            ![
+              'package',
+              'import',
+              'as',
+              'default',
+              'else',
+              'some',
+              'every',
+              'in',
+              'contains',
+              'if',
+              'with',
+              'not',
+            ].includes(ruleName)
+          ) {
             mappings.set(ruleName, i + 1); // 1-indexed line numbers
           }
         }
       }
     } catch (err) {
       // log warning but don't fail - source line mappings are optional enhancement
-      console.warn(`[OpaEvaluator] Failed to read source file for line mappings: ${policyPath}`, err);
+      console.warn(
+        `[OpaEvaluator] Failed to read source file for line mappings: ${policyPath}`,
+        err,
+      );
     }
 
     // cache for future use
@@ -627,7 +693,7 @@ class OpaEvaluatorSingleton {
     evalResult: Record<string, unknown>,
     level: TraceLevel,
     maxSizeBytes: number,
-    sourceLineMappings: Map<string, number>
+    sourceLineMappings: Map<string, number>,
   ): Omit<EvaluationTrace, 'finalDecision'> {
     const rulesEvaluated: RuleTrace[] = [];
     const executionPath: ExecutionPathEntry[] = [];
@@ -642,8 +708,13 @@ class OpaEvaluatorSingleton {
       for (const event of explanation) {
         // OPA uses capitalized keys
         const op = event.Op as string | undefined;
-        const location = event.Location as { file?: string; row?: number; col?: number } | undefined;
-        const node = event.Node as Record<string, unknown> | Array<Record<string, unknown>> | undefined;
+        const location = event.Location as
+          | { file?: string; row?: number; col?: number }
+          | undefined;
+        const node = event.Node as
+          | Record<string, unknown>
+          | Array<Record<string, unknown>>
+          | undefined;
         const locals = event.Locals as Array<{ key: unknown; value: unknown }> | undefined;
 
         // extract rule evaluations (AC-2.2.1, AC-2.2.2)
@@ -702,7 +773,10 @@ class OpaEvaluatorSingleton {
       const halfLength = Math.floor(rulesEvaluated.length / 2);
       rulesEvaluated.splice(halfLength);
       executionPath.splice(halfLength);
-      sizeBytes = Buffer.byteLength(JSON.stringify({ rulesEvaluated, executionPath, variableBindings }), 'utf-8');
+      sizeBytes = Buffer.byteLength(
+        JSON.stringify({ rulesEvaluated, executionPath, variableBindings }),
+        'utf-8',
+      );
     }
 
     return {
@@ -719,7 +793,9 @@ class OpaEvaluatorSingleton {
    * Extracts rule name from OPA trace node.
    * Handles both single node objects and arrays of nodes.
    */
-  private extractRuleName(node: Record<string, unknown> | Array<Record<string, unknown>> | undefined): string | undefined {
+  private extractRuleName(
+    node: Record<string, unknown> | Array<Record<string, unknown>> | undefined,
+  ): string | undefined {
     if (!node) return undefined;
 
     // handle array of nodes (Enter events)
@@ -736,8 +812,8 @@ class OpaEvaluatorSingleton {
           if (values && Array.isArray(values)) {
             // extract the last meaningful name (rule name)
             const stringValues = values
-              .filter(v => v.type === 'string')
-              .map(v => v.value)
+              .filter((v) => v.type === 'string')
+              .map((v) => v.value)
               .filter(Boolean);
             if (stringValues.length > 0) {
               return stringValues[stringValues.length - 1];
@@ -755,7 +831,7 @@ class OpaEvaluatorSingleton {
    */
   private determineRuleResult(
     event: Record<string, unknown>,
-    explanation: Array<Record<string, unknown>>
+    explanation: Array<Record<string, unknown>>,
   ): 'true' | 'false' | 'undefined' {
     const queryId = event.QueryID as number | undefined;
 

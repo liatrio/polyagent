@@ -29,7 +29,7 @@ function findProjectRoot(): string {
 
 export async function runVerify(): Promise<void> {
   console.log(chalk.blue('PolyAgent Verification'));
-  
+
   let success = true;
 
   // 1. Verify Config
@@ -47,7 +47,7 @@ export async function runVerify(): Promise<void> {
   try {
     process.stdout.write('Checking framework data... ');
     // Initialize logger for FrameworkStore (it uses LoggerService.getLogger())
-    LoggerService.initialize(); 
+    LoggerService.initialize();
     await FrameworkStore.getInstance().initialize();
     const frameworks = FrameworkStore.getInstance().listFrameworks();
     if (frameworks.length >= 3) {
@@ -64,14 +64,14 @@ export async function runVerify(): Promise<void> {
 
   // 3. Verify MCP Server Connection
   process.stdout.write('Testing MCP server connection... ');
-  
+
   // Determine the script to run. We use the current process's entry point.
-  const scriptPath = process.argv[1]; 
-  
+  const scriptPath = process.argv[1];
+
   try {
     const transport = new StdioClientTransport({
       command: process.execPath,
-      args: [scriptPath, 'start']
+      args: [scriptPath, 'start'],
     });
 
     const client = new Client(
@@ -81,19 +81,19 @@ export async function runVerify(): Promise<void> {
       },
       {
         capabilities: {},
-      }
+      },
     );
 
     await client.connect(transport);
-    
+
     // Check tools list
     const tools = await client.listTools();
-    
+
     // Should have at least system/health
-    if (tools.tools.some(t => t.name === 'system/health')) {
-         console.log(chalk.green('OK'));
+    if (tools.tools.some((t) => t.name === 'system/health')) {
+      console.log(chalk.green('OK'));
     } else {
-        console.log(chalk.yellow('WARNING (Connected but system/health tool missing)'));
+      console.log(chalk.yellow('WARNING (Connected but system/health tool missing)'));
     }
 
     await client.close();
@@ -102,7 +102,7 @@ export async function runVerify(): Promise<void> {
     console.log(chalk.red(`\nCould not connect to MCP server at ${scriptPath}`));
     success = false;
   }
-  
+
   // 4. OPA Engine verification using example policy
   process.stdout.write('Checking OPA engine... ');
   try {
@@ -120,10 +120,10 @@ export async function runVerify(): Promise<void> {
         input: {
           user: { name: 'admin', role: 'admin' },
           action: 'write',
-          resource: { type: 'document' }
+          resource: { type: 'document' },
         },
         packageName: 'rbac',
-        ruleName: 'allow'
+        ruleName: 'allow',
       });
 
       // Test with viewer user writing (should deny)
@@ -131,10 +131,10 @@ export async function runVerify(): Promise<void> {
         input: {
           user: { name: 'viewer', role: 'viewer' },
           action: 'write',
-          resource: { type: 'document' }
+          resource: { type: 'document' },
         },
         packageName: 'rbac',
-        ruleName: 'allow'
+        ruleName: 'allow',
       });
 
       // Verify expected results
@@ -163,7 +163,7 @@ export async function runVerify(): Promise<void> {
       console.log(chalk.yellow('SKIPPED (Policy index not initialized - run setup first)'));
     } else {
       const embeddingService = EmbeddingService.getInstance();
-      
+
       if (!embeddingService.hasApiKey()) {
         console.log(chalk.yellow(`SKIPPED (No OpenAI API key - ${stats.count} policies indexed)`));
       } else {
@@ -171,11 +171,13 @@ export async function runVerify(): Promise<void> {
         const testQuery = 'RBAC authorization policy';
         const queryEmbedding = await embeddingService.generateEmbedding(testQuery);
         const results = vectorStore.search(queryEmbedding, { limit: 1 });
-        
+
         if (results.length > 0) {
           console.log(chalk.green(`OK (${stats.count} policies indexed, search working)`));
         } else {
-          console.log(chalk.yellow(`OK (${stats.count} policies indexed, no results for test query)`));
+          console.log(
+            chalk.yellow(`OK (${stats.count} policies indexed, no results for test query)`),
+          );
         }
       }
     }

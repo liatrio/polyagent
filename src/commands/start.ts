@@ -1,9 +1,6 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { ConfigService } from '../config/index.js';
 import { LoggerService } from '../services/logger.js';
 import { HealthService } from '../services/health.js';
@@ -20,9 +17,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const packageJson = JSON.parse(
-  readFileSync(join(__dirname, '../../package.json'), 'utf-8'),
-);
+const packageJson = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf-8'));
 const VERSION = packageJson.version;
 
 const tools = [HealthToolSchema, ExplainPolicyToolSchema, SearchExamplesToolSchema];
@@ -70,7 +65,10 @@ export async function startServer(): Promise<void> {
         name: tool.name,
         description: tool.description,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        inputSchema: { type: 'object', ...zodToJsonSchema(tool.input as any, { $refStrategy: 'none' }) },
+        inputSchema: {
+          type: 'object',
+          ...zodToJsonSchema(tool.input as any, { $refStrategy: 'none' }),
+        },
       })),
     };
     LoggerService.getLogger().debug({ response }, 'Responding to tools/list request');
@@ -101,18 +99,24 @@ export async function startServer(): Promise<void> {
         // AC-2.3.1: Tool registered with name explain_policy_decision
         const validatedArgs = ExplainPolicyToolSchema.input.parse(args);
         const startTime = performance.now();
-        LoggerService.getLogger().info({ policyPath: validatedArgs.policyPath }, 'explain_policy_decision invoked');
+        LoggerService.getLogger().info(
+          { policyPath: validatedArgs.policyPath },
+          'explain_policy_decision invoked',
+        );
 
         const result = await executeExplainPolicy(validatedArgs);
 
         const executionTime = performance.now() - startTime;
-        LoggerService.getLogger().info({ executionTime, policyPath: validatedArgs.policyPath }, 'explain_policy_decision completed');
+        LoggerService.getLogger().info(
+          { executionTime, policyPath: validatedArgs.policyPath },
+          'explain_policy_decision completed',
+        );
 
         if (result.error) {
           // AC-2.3.11: Log errors with details (stack traces captured in error object)
           LoggerService.getLogger().error(
             { error: result.error, policyPath: validatedArgs.policyPath, stack: new Error().stack },
-            'explain_policy_decision error'
+            'explain_policy_decision error',
           );
         }
 

@@ -13,9 +13,7 @@ const MAX_SNIPPET_LINES = 200;
  * Default similarity threshold for results
  * Configurable via POLYAGENT_SEARCH_THRESHOLD environment variable
  */
-const DEFAULT_SIMILARITY_THRESHOLD = parseFloat(
-  process.env.POLYAGENT_SEARCH_THRESHOLD ?? '0.5'
-);
+const DEFAULT_SIMILARITY_THRESHOLD = parseFloat(process.env.POLYAGENT_SEARCH_THRESHOLD ?? '0.5');
 
 /**
  * Policy domain suggestions for empty results
@@ -55,10 +53,7 @@ const SearchExamplesInput = z.object({
     .max(10)
     .default(3)
     .describe('Maximum number of results to return (1-10, default: 3)'),
-  filterRepo: z
-    .string()
-    .optional()
-    .describe('Filter results to a specific repository name'),
+  filterRepo: z.string().optional().describe('Filter results to a specific repository name'),
 });
 
 /**
@@ -169,7 +164,7 @@ const formatResult = (result: SearchResult): PolicyExample => ({
  * AC-3.4.8: Tool invocations logged (query, not full results)
  */
 export const executeSearchExamples = async (
-  input: SearchExamplesInputType
+  input: SearchExamplesInputType,
 ): Promise<SearchExamplesOutputType> => {
   const { query, limit = 3, filterRepo } = input;
   const logger = LoggerService.getLogger();

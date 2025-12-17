@@ -48,6 +48,12 @@ jobs:
         with:
           node-version: "22"
           cache: "npm"
+      - name: Install OPA
+        run: |
+          curl -L -o opa https://openpolicyagent.org/downloads/v0.70.0/opa_linux_amd64_static
+          chmod +x opa
+          sudo mv opa /usr/local/bin/
+          opa version
       - name: Install dependencies
         run: npm ci
       - name: Run tests

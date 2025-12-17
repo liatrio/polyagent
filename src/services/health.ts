@@ -5,9 +5,7 @@ import { FrameworkStore } from './framework-store.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const packageJson = JSON.parse(
-  readFileSync(join(__dirname, '../../package.json'), 'utf-8'),
-);
+const packageJson = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf-8'));
 const VERSION = packageJson.version;
 
 /**
@@ -52,11 +50,11 @@ export class HealthService {
   public getHealth(): HealthStatus {
     const frameworkStore = FrameworkStore.getInstance();
     const frameworkCount = frameworkStore.getFrameworksCount();
-    
+
     // AC-5: Status "ok" if all 3 core frameworks loaded (at least 3)
     // "degraded" if any missing (less than 3)
     const frameworksStatus = frameworkCount >= 3 ? 'ok' : 'degraded';
-    
+
     const components: Record<string, ComponentHealth> = {
       config: { status: 'ok' },
       mcp_server: { status: 'ok' },
@@ -66,7 +64,7 @@ export class HealthService {
       },
     };
 
-    const isHealthy = Object.values(components).every(c => c.status === 'ok');
+    const isHealthy = Object.values(components).every((c) => c.status === 'ok');
 
     return {
       status: isHealthy ? 'healthy' : 'degraded',

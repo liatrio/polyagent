@@ -29,13 +29,13 @@ export class ConfigService {
   public async initialize(configPath?: string): Promise<Config> {
     try {
       const userConfig = await this.loadUserConfig(configPath);
-      
+
       // Zod handles validation and merging with defaults
       const parsedConfig = ConfigSchema.parse(userConfig);
-      
+
       // Freeze configuration to ensure immutability (AC-5)
       this.config = Object.freeze(parsedConfig);
-      
+
       return this.config;
     } catch (error) {
       if (error instanceof Error) {
@@ -60,12 +60,15 @@ export class ConfigService {
    * Load user configuration from file
    */
   private async loadUserConfig(customPath?: string): Promise<unknown> {
-    const configPath = customPath || process.env.POLYAGENT_CONFIG_PATH || join(process.cwd(), 'polyagent.config.json');
+    const configPath =
+      customPath ||
+      process.env.POLYAGENT_CONFIG_PATH ||
+      join(process.cwd(), 'polyagent.config.json');
 
     try {
       // Check if file exists
       await access(configPath, constants.R_OK);
-      
+
       // Read and parse JSON
       const fileContent = await readFile(configPath, 'utf-8');
       return JSON.parse(fileContent);

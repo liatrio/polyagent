@@ -29,9 +29,8 @@ class LoggerServiceSingleton {
 
     const config = ConfigService.getInstance().getConfig();
 
-    const transport = process.env.NODE_ENV === 'development'
-      ? { target: 'pino-pretty' }
-      : undefined;
+    const transport =
+      process.env.NODE_ENV === 'development' ? { target: 'pino-pretty' } : undefined;
 
     this.logger = pino(
       {

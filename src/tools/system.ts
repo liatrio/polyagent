@@ -12,9 +12,12 @@ export const HealthToolSchema = {
     status: z.enum(['healthy', 'degraded', 'unhealthy']),
     uptime: z.number(),
     version: z.string(),
-    components: z.record(z.string(), z.object({
-      status: z.enum(['ok', 'degraded', 'error']),
-      details: z.string().optional(),
-    })),
+    components: z.record(
+      z.string(),
+      z.object({
+        status: z.enum(['ok', 'degraded', 'error']),
+        details: z.string().optional(),
+      }),
+    ),
   }),
 };
