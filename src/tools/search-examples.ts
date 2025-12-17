@@ -53,8 +53,8 @@ const SearchExamplesInput = z.object({
     .int()
     .min(1)
     .max(10)
-    .default(3)
     .optional()
+    .default(3)
     .describe('Maximum number of results to return (1-10, default: 3)'),
   filterRepo: z
     .string()
