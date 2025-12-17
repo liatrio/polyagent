@@ -101,6 +101,70 @@ Evaluates an OPA policy with input data and returns a detailed trace showing whi
 
 See [`examples/debug-why-deny.md`](examples/debug-why-deny.md) for a complete tutorial.
 
+### `search_policy_examples`
+
+Semantic search over curated OPA policy repositories. Use this to discover proven implementation patterns for RBAC, Kubernetes admission control, supply chain security, and more.
+
+**Input Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `query` | string | Yes | Natural language search query for policy examples |
+| `limit` | number | No | Maximum results to return (1-10, default: 3) |
+| `filterRepo` | string | No | Filter results to a specific repository |
+
+**Example Input:**
+
+```json
+{
+  "query": "Kubernetes RBAC authorization policy",
+  "limit": 5
+}
+```
+
+**Output Format:**
+
+```json
+{
+  "results": [
+    {
+      "repo": "opa-library",
+      "path": "authz/rbac.rego",
+      "snippet": "package authz.rbac\n\ndefault allow = false\n...",
+      "description": "Role-based access control for API authorization",
+      "tags": ["rbac", "authorization", "kubernetes"],
+      "similarityScore": 0.89
+    }
+  ],
+  "totalFound": 1
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `results` | array | Array of matching policy examples |
+| `results[].repo` | string | Source repository name |
+| `results[].path` | string | File path within the repository |
+| `results[].snippet` | string | Policy code snippet (max 200 lines) |
+| `results[].description` | string | Description of the policy |
+| `results[].tags` | array | Categorization tags |
+| `results[].similarityScore` | number | Relevance score (0-1) |
+| `totalFound` | number | Number of results returned |
+| `suggestions` | array | Alternative query suggestions (when no results) |
+
+**Query Tips:**
+
+- **Be specific** - "Kubernetes pod security" works better than just "security"
+- **Include context** - Mention the domain (AWS, Kubernetes, Terraform)
+- **Use policy terms** - "deny", "allow", "admission", "authorization"
+- **Filter by repo** - Use `filterRepo` for examples from trusted sources
+
+**Tutorials:**
+
+- [`examples/search-sigstore-examples.md`](examples/search-sigstore-examples.md) - Container signature verification
+- [`examples/search-rbac-examples.md`](examples/search-rbac-examples.md) - Role-based access control
+- [`examples/search-slsa-examples.md`](examples/search-slsa-examples.md) - Supply chain security (SLSA)
+
 ## Development
 
 **Build:**

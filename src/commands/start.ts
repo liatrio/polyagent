@@ -10,6 +10,7 @@ import { HealthService } from '../services/health.js';
 import { FrameworkStore } from '../services/framework-store.js';
 import { HealthToolSchema } from '../tools/system.js';
 import { ExplainPolicyToolSchema, executeExplainPolicy } from '../tools/explain-policy.js';
+import { SearchExamplesToolSchema, executeSearchExamples } from '../tools/search-examples.js';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
 import { readFileSync } from 'fs';
@@ -24,7 +25,7 @@ const packageJson = JSON.parse(
 );
 const VERSION = packageJson.version;
 
-const tools = [HealthToolSchema, ExplainPolicyToolSchema];
+const tools = [HealthToolSchema, ExplainPolicyToolSchema, SearchExamplesToolSchema];
 
 /**
  * Initialize and start the MCP server
@@ -114,6 +115,26 @@ export async function startServer(): Promise<void> {
             'explain_policy_decision error'
           );
         }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'search_policy_examples': {
+        // AC-3.4.1: Tool registered with name search_policy_examples
+        const validatedArgs = SearchExamplesToolSchema.input.parse(args);
+        const startTime = performance.now();
+
+        const result = await executeSearchExamples(validatedArgs);
+
+        const executionTime = performance.now() - startTime;
+        LoggerService.getLogger().debug({ executionTime }, 'search_policy_examples execution time');
 
         return {
           content: [

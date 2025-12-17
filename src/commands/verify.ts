@@ -6,6 +6,8 @@ import { ConfigService } from '../config/index.js';
 import { FrameworkStore } from '../services/framework-store.js';
 import { LoggerService } from '../services/logger.js';
 import { OpaEvaluator } from '../lib/opa-evaluator.js';
+import { VectorStore } from '../lib/vector-store.js';
+import { EmbeddingService } from '../lib/embedding-service.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
@@ -154,8 +156,37 @@ export async function runVerify(): Promise<void> {
     success = false;
   }
 
+  // 5. RAG System verification
   process.stdout.write('Checking RAG system... ');
-  console.log(chalk.yellow('SKIPPED (Pending Epic 3)'));
+  try {
+    const vectorStore = VectorStore.getInstance();
+    const stats = vectorStore.getStats();
+
+    if (!stats.initialized || stats.count === 0) {
+      console.log(chalk.yellow('SKIPPED (Policy index not initialized - run setup first)'));
+    } else {
+      const embeddingService = EmbeddingService.getInstance();
+      
+      if (!embeddingService.hasApiKey()) {
+        console.log(chalk.yellow(`SKIPPED (No OpenAI API key - ${stats.count} policies indexed)`));
+      } else {
+        // test search with a common query
+        const testQuery = 'RBAC authorization policy';
+        const queryEmbedding = await embeddingService.generateEmbedding(testQuery);
+        const results = vectorStore.search(queryEmbedding, { limit: 1 });
+        
+        if (results.length > 0) {
+          console.log(chalk.green(`OK (${stats.count} policies indexed, search working)`));
+        } else {
+          console.log(chalk.yellow(`OK (${stats.count} policies indexed, no results for test query)`));
+        }
+      }
+    }
+  } catch (err) {
+    console.log(chalk.red('FAILED'));
+    console.error('RAG verification error:', err);
+    success = false;
+  }
 
   if (success) {
     console.log(chalk.green('\n✓ Verification passed successfully.'));
