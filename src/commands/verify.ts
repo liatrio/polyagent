@@ -97,11 +97,8 @@ export async function runVerify(): Promise<void> {
     }
 
     await client.close();
-  } catch (err) {
+  } catch {
     console.log(chalk.red('FAILED'));
-    // Only log full error if it's not just a connection close
-    // console.error('Could not connect to MCP server:', err);
-    // Simplified error for CLI user
     console.log(chalk.red(`\nCould not connect to MCP server at ${scriptPath}`));
     success = false;
   }

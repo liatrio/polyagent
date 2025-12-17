@@ -3,7 +3,6 @@ import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
 import { z } from 'zod';
-import { ConfigService } from '../config/index.js';
 import { LoggerService } from './logger.js';
 
 const __filename = fileURLToPath(import.meta.url);

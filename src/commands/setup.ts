@@ -74,7 +74,7 @@ export async function runSetup(): Promise<void> {
       if (existsSync(claudeConfigPath)) {
         try {
           mcpConfig = JSON.parse(readFileSync(claudeConfigPath, 'utf-8'));
-        } catch (e) {
+        } catch {
           // If file exists but is invalid, start fresh but warn? Or just overwrite?
           // We'll initialize if empty/invalid
           mcpConfig = { mcpServers: {} };
