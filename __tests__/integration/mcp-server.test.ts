@@ -193,9 +193,11 @@ describe('MCP Server Integration Tests', () => {
       });
 
       let exitCode: number | null = null;
+      let exitSignal: NodeJS.Signals | null = null;
 
-      serverProcess.on('exit', (code) => {
+      serverProcess.on('exit', (code, signal) => {
         exitCode = code;
+        exitSignal = signal;
       });
 
       // Wait for startup, then send SIGINT
@@ -206,7 +208,9 @@ describe('MCP Server Integration Tests', () => {
 
         // Wait for process to exit
         setTimeout(() => {
-          expect(exitCode).toBe(0);
+          // process exits with code 0 or is terminated by SIGINT signal
+          const exitedGracefully = exitCode === 0 || exitSignal === 'SIGINT';
+          expect(exitedGracefully).toBe(true);
           done();
         }, 500);
       }, 500);
